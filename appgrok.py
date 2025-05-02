@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -16,20 +18,11 @@ from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 from scipy.interpolate import make_interp_spline
+# Thiết lập xác thực Google BigQuery
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS_JSON
+client = bigquery.Client(project='etl-cap3')
 
-# BigQuery authentication with environment variable
-t# BigQuery authentication with environment variable
-try:
-    credentials_info = json.loads(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{}"))
-    if not credentials_info:
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable is empty or not set.")
-    credentials = service_account.Credentials.from_service_account_info(credentials_info)
-    client = bigquery.Client(project='etl-cap3', credentials=credentials)
-    st.info("BigQuery client initialized successfully.")
-except Exception as e:
-    st.error(f"BigQuery authentication failed: {e}")
-    st.stop()
-# Title and description
+#
 st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
 st.markdown("""
 Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu, 
@@ -37,30 +30,23 @@ và các biểu đồ phân tích dựa trên dữ liệu được lưu ở Goog
 Bạn vui lòng chọn tab để xem các phân tích chi tiết.
 """)
 
-# Load data from BigQuery
+# Tải dữ liệu từ BigQuery
 @st.cache_data
 def load_data():
     query = """
         SELECT * FROM etl-cap3.Sale_AMZ_ETSY.FinalData
         LIMIT 500000000
     """
-    try:
-        df = client.query(query).to_dataframe()
-        df['Order Date'] = pd.to_datetime(df['Order Date'])
-        df['year'] = df['Order Date'].dt.year
-        return df
-    except Exception as e:
-        st.error(f"Failed to load data from BigQuery: {e}")
-        return pd.DataFrame()
+    df = client.query(query).to_dataframe()
+    df['Order Date'] = pd.to_datetime(df['Order Date'])
+    df['year'] = df['Order Date'].dt.year
+    return df
 
-# Load data
+# Tải dữ liệu
 with st.spinner("Đang tải dữ liệu từ BigQuery..."):
     df = load_data()
-    if df.empty:
-        st.error("No data loaded from BigQuery. Please check authentication and query.")
-        st.stop()
 
-# Create tabs
+# Tạo các tab
 tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Doanh Thu", "💵 Dự Đoán Doanh Thu", "📀 Phân Cụm Khách Hàng"])
 
 # Tab 1: Tổng Quan Doanh Thu
@@ -68,49 +54,45 @@ with tab1:
     st.header("📊 Tổng Quan Doanh Thu Theo Năm")
     revenue_by_year = df.groupby('year')['Order Total'].sum().reset_index()
 
-    # Plot revenue by year with Plotly
+    # Vẽ biểu đồ doanh thu theo năm với Plotly
     fig = px.bar(revenue_by_year, x='year', y='Order Total', title='Tổng Doanh Thu Theo Năm',
                  labels={'year': 'Năm', 'Order Total': 'Tổng Doanh Thu'}, color_discrete_sequence=['red'])
     fig.update_layout(xaxis_tickangle=0, yaxis=dict(griddash='dash', gridcolor='gray'))
     st.plotly_chart(fig)
 
-    # Dynamic chart for Order Total by Sub-Category
+   # Thêm biểu đồ Tổng Order Total theo Sub-Category (động)
     st.subheader("Tổng Order Total theo Sub-Category Theo Năm")
     
-    # Calculate total Order Total by Sub-Category and Year
+    # Tính tổng Order Total theo Sub-Category và Year
     df['Year'] = df['Order Date'].dt.year
-    try:
-        pivot_data = df.groupby(['Year', 'Sub Category'])['Order Total'].sum().unstack()
-    except KeyError as e:
-        st.error(f"Column not found: {e}. Available columns: {list(df.columns)}")
-        st.stop()
+    pivot_data = df.groupby(['Year', 'Sub Category'])['Order Total'].sum().unstack()
 
-    # Get list of years
+    # Lấy danh sách năm
     years = sorted(pivot_data.index)
 
-    # Define colors for the last 3 years
+    # Định nghĩa màu theo năm (3 năm gần nhất)
     year_colors = {
         years[-3] if len(years) >= 3 else years[0]: '#1f77b4',  # blue
         years[-2] if len(years) >= 2 else years[0]: '#2ca02c',  # green
         years[-1] if len(years) >= 1 else years[0]: '#ff7f0e',  # orange
     }
 
-    # Dropdown to select year
+    # Dropdown để chọn năm
     selected_year = st.selectbox("Chọn năm:", years, index=len(years)-1)
 
-    # Plot chart for selected year
+    # Vẽ biểu đồ cho năm được chọn
     if years:
         data = pivot_data.loc[selected_year].sort_values()
         top5 = data.nlargest(5).index
 
-        # Set colors: top 5 in bold, others in light gray
+        # Đặt màu: top 5 màu khác (đậm), còn lại là màu nhạt
         colors = [year_colors.get(selected_year, 'lightgray') if subcat in top5 else 'lightgray' for subcat in data.index]
 
-        # Create figure
+        # Tạo figure
         plt.figure(figsize=(10, 6))
         bars = plt.barh(data.index, data.values, color=colors)
         
-        # Add value labels on bars
+        # Ghi nhãn giá trị trên cột
         for bar in bars:
             width = bar.get_width()
             plt.text(width + 0.5, bar.get_y() + bar.get_height()/2,
@@ -122,26 +104,25 @@ with tab1:
         plt.grid(True, axis='x', linestyle='--', alpha=0.7)
         plt.tight_layout()
         
-        # Display chart in Streamlit
+        # Hiển thị biểu đồ trong Streamlit
         st.pyplot(plt.gcf())
-        plt.close()
+        plt.close()  # Đóng figure để tránh xung đột
     else:
         st.warning("Không có dữ liệu để hiển thị biểu đồ theo Sub-Category.")
-
 # Tab 2: Dự Đoán Doanh Thu
 with tab2:
     st.header("💵 Dự Đoán Doanh Thu với Prophet")
 
-    # Prepare data for Prophet
+    # Chuẩn bị dữ liệu cho Prophet
     prophet_df = df[['Order Date', 'Order Total']].rename(columns={'Order Date': 'ds', 'Order Total': 'y'})
     prophet_df = prophet_df.groupby('ds').sum().reset_index()
 
-    # Smooth actual data
+    # Làm mượt dữ liệu thực tế
     prophet_df['y_smooth'] = prophet_df['y'].rolling(window=5, center=True, min_periods=1).mean()
     prophet_df['ds_numeric'] = prophet_df['ds'].apply(lambda x: x.timestamp())
     prophet_df = prophet_df.sort_values('ds_numeric')
 
-    # Interpolate for smoothing
+    # Nội suy để làm mượt
     x = prophet_df['ds_numeric']
     y = prophet_df['y_smooth']
     x_smooth = np.linspace(x.min(), x.max(), 500)
@@ -149,18 +130,18 @@ with tab2:
     y_smooth = spl(x_smooth)
     ds_smooth = pd.to_datetime(x_smooth, unit='s')
 
-    # Train Prophet model
+    # Huấn luyện mô hình Prophet
     model = Prophet(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=True, changepoint_prior_scale=0.01)
     model.fit(prophet_df)
 
-    # Chart 1: Actual vs. predicted within original data range
+    # Biểu đồ 1: Thực tế và dự đoán trong phạm vi dữ liệu gốc
     past_future = prophet_df[['ds']].copy()
     past_forecast = model.predict(past_future)
     past_forecast['yhat_smooth'] = past_forecast['yhat'].rolling(window=5, center=True, min_periods=1).mean()
     past_forecast['yhat_lower_smooth'] = past_forecast['yhat_lower'].rolling(window=5, center=True, min_periods=1).mean()
     past_forecast['yhat_upper_smooth'] = past_forecast['yhat_upper'].rolling(window=5, center=True, min_periods=1).mean()
 
-    # Plot with Plotly
+    # Vẽ biểu đồ với Plotly
     fig1 = go.Figure()
     fig1.add_trace(go.Scatter(x=ds_smooth, y=y_smooth, mode='lines', name='Thực tế', line=dict(color='blue', width=1)))
     fig1.add_trace(go.Scatter(x=past_forecast['ds'], y=past_forecast['yhat_smooth'], mode='lines', name='Dự đoán', line=dict(color='orange', width=1)))
@@ -169,14 +150,14 @@ with tab2:
     fig1.update_layout(title='Giá trị bán hàng hàng tháng - Prophet (Tập gốc)', xaxis_title='Ngày', yaxis_title='Giá trị bán hàng', xaxis_tickformat='%Y-%m', xaxis_tickangle=45, yaxis=dict(griddash='dash', gridcolor='gray'))
     st.plotly_chart(fig1)
 
-    # Chart 2: Forecast for next 12 months
+    # Biểu đồ 2: Dự đoán 12 tháng tiếp theo
     future = model.make_future_dataframe(periods=365, freq='D')
     future_forecast = model.predict(future)
     future_forecast['yhat_smooth'] = future_forecast['yhat'].rolling(window=5, center=True, min_periods=1).mean()
     future_forecast['yhat_lower_smooth'] = future_forecast['yhat_lower'].rolling(window=5, center=True, min_periods=1).mean()
     future_forecast['yhat_upper_smooth'] = future_forecast['yhat_upper'].rolling(window=5, center=True, min_periods=1).mean()
 
-    # Plot future forecast
+    # Vẽ biểu đồ dự đoán tương lai
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(x=ds_smooth, y=y_smooth, mode='lines', name='Thực tế', line=dict(color='blue', width=1)))
     fig2.add_trace(go.Scatter(x=future_forecast['ds'][future_forecast['ds'] <= prophet_df['ds'].max()],
@@ -200,7 +181,7 @@ with tab2:
     fig2.update_layout(title='Dự đoán giá trị bán hàng 12 tháng tiếp theo - Prophet', xaxis_title='Ngày', yaxis_title='Giá trị bán hàng', xaxis_tickformat='%Y-%m', xaxis_tickangle=45, yaxis=dict(griddash='dash', gridcolor='gray'))
     st.plotly_chart(fig2)
 
-    # Display evaluation metrics
+    # Hiển thị các chỉ số đánh giá
     eval_df = pd.merge(prophet_df[['ds', 'y']], past_forecast[['ds', 'yhat']], on='ds')
     mae = mean_absolute_error(eval_df['y'], eval_df['yhat'])
     rmse = np.sqrt(mean_squared_error(eval_df['y'], eval_df['yhat']))
@@ -213,55 +194,54 @@ with tab2:
     st.write(f"📊 MAPE: {mape:.2f}%")
     st.write(f"📊 R² Score: {r2:.2f}")
 
-    # Date picker for revenue forecast
+    # Thêm mục chọn ngày để dự đoán doanh thu
     st.subheader("Dự Đoán Doanh Thu Cho Ngày Cụ Thể")
     today = datetime.today().date()
-    max_date = today + timedelta(days=365)
+    max_date = today + timedelta(days=365)  # Giới hạn 1 năm từ hôm nay
     selected_date = st.date_input("Chọn ngày trong tương lai để dự đoán doanh thu:", 
                                   min_value=today, 
                                   max_value=max_date, 
                                   value=today + timedelta(days=30))
 
-    # Predict for selected date
+    # Dự đoán cho ngày được chọn
     selected_date_df = pd.DataFrame({'ds': [pd.to_datetime(selected_date)]})
     selected_forecast = model.predict(selected_date_df)
 
-    # Display prediction results
+    # Hiển thị kết quả dự đoán
     st.markdown(f"**Dự đoán doanh thu cho ngày {selected_date}:**")
     st.write(f"📈 Giá trị dự đoán: **${selected_forecast['yhat'].iloc[0]:,.2f}**")
     st.write(f"📉 Khoảng tin cậy thấp: **${selected_forecast['yhat_lower'].iloc[0]:,.2f}**")
     st.write(f"📊 Khoảng tin cậy cao: **${selected_forecast['yhat_upper'].iloc[0]:,.2f}**")
-
 # Tab 3: Phân Cụm Khách Hàng
 with tab3:
     st.header("📀 Phân Cụm Khách Hàng với GMM")
 
-    # Sample data
+    # Lấy mẫu dữ liệu
     df_sample = df.sample(n=35000, random_state=42)
     df_cluster = df_sample[['Product Cost', 'Shipping Fee', 'Order Total', 'Profit']]
 
-    # Standardize and PCA
+    # Chuẩn hóa và PCA
     scaler = StandardScaler()
     df_scaled = scaler.fit_transform(df_cluster)
     pca = PCA(n_components=2)
     df_pca = pca.fit_transform(df_scaled)
 
-    # Cluster with GMM
+    # Phân cụm với GMM
     gmm = GaussianMixture(n_components=7, random_state=42)
     clusters = gmm.fit_predict(df_pca)
     df_sample['Cluster'] = clusters
 
-    # Plot clustering results
+    # Vẽ biểu đồ phân cụm
     fig3 = px.scatter(x=df_pca[:, 0], y=df_pca[:, 1], color=clusters.astype(str), title='Phân Cụm Khách Hàng với GMM',
                       labels={'x': 'PCA 1', 'y': 'PCA 2', 'color': 'Cluster'}, color_discrete_sequence=px.colors.qualitative.T10)
     fig3.update_layout(showlegend=True)
     st.plotly_chart(fig3)
 
-    # Display clustering sample
+    # Hiển thị kết quả phân cụm
     st.subheader("Kết Quả Phân Cụm (Mẫu)")
     st.dataframe(df_sample[['Order Id', 'City', 'Country', 'Cluster']].head())
 
-    # Analyze cluster characteristics
+    # Phân tích đặc trưng từng cụm
     df_analysis = df_sample[['Product Cost', 'Shipping Fee', 'Order Total', 'Profit', 'Cluster']].copy()
     cluster_summary = df_analysis.groupby('Cluster').mean().round(2)
     cluster_counts = df_analysis['Cluster'].value_counts().sort_index()
@@ -270,7 +250,7 @@ with tab3:
     st.subheader("Đặc Trưng Trung Bình của Từng Cụm")
     st.dataframe(cluster_summary)
 
-    # Evaluate clustering model
+    # Đánh giá mô hình phân cụm (từ Tab 4)
     st.subheader("Đánh Giá Mô Hình Phân Cụm")
     df_valid = df_sample.dropna(subset=['Cluster'])
     X_valid = df_pca
@@ -287,4 +267,4 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.markdown("Web App Demo Đề Án Tốt Nghiệp được xây dựng với Streamlit bởi Ấn Ngọc. Liên hệ hỗ trợ: anngocmukbang@gmail.com")
+st.markdown("Web App Demo Đề Án Tốt Nghiệp được xây dựng với Streamlit bởi Ấn Ngọc . Liên hệ hỗ trợ: anngocmukbang@gmail.com")
