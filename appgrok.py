@@ -17,9 +17,9 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_har
 import numpy as np
 from scipy.interpolate import make_interp_spline
 
-# BigQuery authentication with Streamlit Secrets
+# BigQuery authentication with environment variable
 try:
-    credentials_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+    credentials_info = json.loads(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{}"))
     credentials = service_account.Credentials.from_service_account_info(credentials_info)
     client = bigquery.Client(project='etl-cap3', credentials=credentials)
     st.info("BigQuery client initialized successfully.")
