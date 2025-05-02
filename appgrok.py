@@ -22,10 +22,14 @@ try:
     credentials_info = json.loads(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{}"))
     credentials = service_account.Credentials.from_service_account_info(credentials_info)
     client = bigquery.Client(project='etl-cap3', credentials=credentials)
+    query = "SELECT * FROM etl-cap3.Sale_AMZ_ETSY.FinalData LIMIT 500000"
+    df = client.query(query).to_dataframe()
     st.info("BigQuery client initialized successfully.")
 except Exception as e:
     st.error(f"BigQuery authentication failed: {e}")
     st.stop()
+from google.cloud import bigquery
+from google.oauth2 import service_account
 
 # Title and description
 st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
