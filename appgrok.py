@@ -45,14 +45,6 @@ try:
 except Exception as e:
     st.error(f"BigQuery authentication failed: {e}")
     st.stop()
-
-
-# Hiển thị ảnh cá nhân ở đầu trang
-try:
-    st.image("D:/CÁ NHÂN/ĐOÀN ẤN NGỌC.jpg", caption="", width=500)
-except FileNotFoundError:
-    st.warning("Image file not found. Please check the path: D:/CÁ NHÂN/ĐOÀN ẤN NGỌC.jpg")
-
 #
 st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
 st.markdown("""
