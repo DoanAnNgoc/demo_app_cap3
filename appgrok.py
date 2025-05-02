@@ -19,34 +19,8 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_har
 import numpy as np
 from scipy.interpolate import make_interp_spline
 # Thiết lập xác thực Google BigQuery
-#os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "D:/CÁ NHÂN/terminal/terminal/etl-cap3-27b899b6d343.json"
-#client = bigquery.Client(project='etl-cap3')
-#st.image("D:/CÁ NHÂN\ĐOÀN ẤN NGỌC.jpg", caption="", width=400)
-# Thiết lập tiêu đề và mô tả
-# Thiết lập xác thực Google BigQuery
-# Thiết lập xác thực Google BigQuery với key nhúng trực tiếp
-# Thiết lập xác thực Google BigQuery với key nhúng trực tiếp
-try:
-    # Service account key nhúng trực tiếp
-    service_account_key = {
-        "type": "service_account",
-        "project_id": "etl-cap3",
-        "private_key_id": "245da5598637b821c070805759e56b78de5ea1b9",
-        "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDQucMxbrHEXP8I\nIp9n4VJMVzddafuktm4evdM94BwqVU3/YP6+ssokyNTqu/21s71n3mO5EeyXQOsP\nW4V/uQzroA6GQMaXhum+5XSNi0kLfaE5SS2A7a6cID40CHpT+XvuTumztOeZsPjX\nkDe1KiDKAzFVztn7lrVZgcS0aFbRF4/yD7wtOuw53PlqFHWcBlPbVS01y/ga55k/\nkoSKMbVu18HpEytiK4JOOYngupooCP6nGUChZloqkUqAJ55Aa7asGELCe8oc2zuO\nk0PB+dqSPMz3d3IjttSdlAR/lMDdQ0zTdfnrQcVWATDOwUaj3016ctk+NyHltSAN\nDCOpIKQ1AgMBAAECggEAJJyI6/lOLjLfuyYTju2beW+M8xI9hSFIxJSoYoCWgChx\nY3u4g2uqAHTHwBrUgFQ0Q21jUZmexdMpyApWKtajOQtcsNjY3MhZ5NWrsY4+dEkH\niBxZYnWOfK09K/RWvLcUsXLfFFoFi9Raebk+xETM9pJDy5jabIJ9ceNMxRZOMCOg\nMos6MitSxAk5u/5hNUcORziw75RziGa+NoW89CDstfo7N0ttcbFm8QmVoSdcgRk1\nh4M6yhoDwIzB8sD9vX3gbMpx/Ka25DDR93uJZZnZQsGc6ZZHhs5MgVvmnk94IR1A\nmEr1i/j7JvUmhNqrwDo/RsWmuo2my0NpRf32sE+IMQKBgQDz9laPC582rdlskf8K\nPfZJb80LvpXB1RV3mKh8BpKJbY9E3a2WW5RWMTMZg5T0K/6jyXMIAb0iSnHm9a3c\nK/Gu9SJ9HuSK9bzhRAaIIinwSvACzsiSBGA1HJcK+fy4Erb1Um4MyLiSjUsEJIOU\nN5MvQz+aZQeEzC7dIOCTYVDM/QKBgQDbBlNJoKUHyqiM9jCKDSma3ZMx+PfPY/qU\n5CU/pT2LrWUZvm4PwDBLg8x3rJJdbl4kMz9wuXnPQGTQdhEf5vGkVTudSM3q5eAH\nG4nfuzh2eW59rkNPlGyySOSoJOLiPZ4nH1Jr8H7czXLD1LGYv5uez5exQ9OZYfDJ\ngsvd/sj1mQKBgQCB/IQcTZ30fWb2wUd5xo/+ivJeyppyn72DbrR++OWFEfofQFoo\nXf1Ie4h1lLV98B8KV+DRqFOE/NN5sveC82sfxH8u2ZH+NHcCM8OjL0jXPqZpaJJX\nsrssMWKNN6uezGHtjpESgLRPabdJqsbs5zumGBfAhQofiMeDjOv7uwNZZQKBgHjt\nTR7hqzxaECWD59jQ25+9pn94zpmawcdjD43MVebAnYlRMsNPgVqwMjwA8+7R+PhT\nszsxrKdZDlBqX5oVkGUDCh8VC1wd/0rtUXpNjCcddHu/szpE4J6u0FBlzT7Mdn1z\nNbaS2fhfFnY5ALUtVWahh0dAA5w0DxWzOYwgGCRBAoGANZaaE3xHU0oexWGCXDYs\nokzjlKZYP9lgoO467jAXNFFRvWBYTtiIdGYzurLQ6LwpGsy8I5ZD/zTMoTCYFNqu\nJul/yjH3PucYFgjEzdObPR88Fab/GQ6qFRSgH7YoAY7aqWwZgaaJ/PPHIrNQNTYy\nsJ+RMrnoB1iysXyl6y/lcDk=\n-----END PRIVATE KEY-----\n",
-        "client_email": "etl-cap3@etl-cap3.iam.gserviceaccount.com",
-        "client_id": "118374989078209513090",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/etl-cap3%40etl-cap3.iam.gserviceaccount.com",
-        "universe_domain": "googleapis.com"
-        }
-    credentials = service_account.Credentials.from_service_account_info(service_account_key)
-    client = bigquery.Client(project='etl-cap3', credentials=credentials)
-except Exception as e:
-    st.error(f"BigQuery authentication failed: {e}")
-    st.stop()
-
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "D:/CÁ NHÂN/terminal/terminal/etl-cap3-27b899b6d343.json"
+client = bigquery.Client(project='etl-cap3')
 
 #
 st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
