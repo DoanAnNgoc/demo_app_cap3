@@ -23,7 +23,6 @@ try:
     credentials = service_account.Credentials.from_service_account_info(credentials_info)
     client = bigquery.Client(project='etl-cap3', credentials=credentials)
     query = "SELECT * FROM etl-cap3.Sale_AMZ_ETSY.FinalData LIMIT 500000"
-    df = client.query(query).to_dataframe()
     st.info("BigQuery client initialized successfully.")
 except Exception as e:
     st.error(f"BigQuery authentication failed: {e}")
