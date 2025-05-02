@@ -18,10 +18,16 @@ from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 from scipy.interpolate import make_interp_spline
-# Thiết lập xác thực Google BigQuery
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS_JSON
-client = bigquery.Client(project='etl-cap3')
-
+try:
+    credentials_info = json.loads(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{}"))
+    if not credentials_info:
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable is empty or not set.")
+    credentials = service_account.Credentials.from_service_account_info(credentials_info)
+    client = bigquery.Client(project='etl-cap3', credentials=credentials)
+    st.info("BigQuery client initialized successfully.")
+except Exception as e:
+    st.error(f"BigQuery authentication failed: {e}")
+    st.stop()
 #
 st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
 st.markdown("""
