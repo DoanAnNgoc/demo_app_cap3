@@ -18,18 +18,17 @@ import numpy as np
 from scipy.interpolate import make_interp_spline
 
 # BigQuery authentication with environment variable
+t# BigQuery authentication with environment variable
 try:
     credentials_info = json.loads(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{}"))
+    if not credentials_info:
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable is empty or not set.")
     credentials = service_account.Credentials.from_service_account_info(credentials_info)
     client = bigquery.Client(project='etl-cap3', credentials=credentials)
-    query = "SELECT * FROM etl-cap3.Sale_AMZ_ETSY.FinalData LIMIT 500000"
     st.info("BigQuery client initialized successfully.")
 except Exception as e:
     st.error(f"BigQuery authentication failed: {e}")
     st.stop()
-from google.cloud import bigquery
-from google.oauth2 import service_account
-
 # Title and description
 st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
 st.markdown("""
