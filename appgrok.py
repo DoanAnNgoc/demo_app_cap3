@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 @st.cache_data
 def load_data():
     try:
-        file_path = "corrected_data.csv.gz"  # Đường dẫn tới file .gz trong repository
+        file_path = "final_data.csv.gz"  # Đường dẫn tới file .gz trong repository
         logger.info(f"Bắt đầu đọc file {file_path}...")
         
         # Đọc file nén
