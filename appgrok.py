@@ -147,6 +147,7 @@ with tab1:
 
     if 'Marketplace' in df.columns:
         st.subheader("💳 Tổng Quan Theo Sàn")
+        df['Profit'] = df['Order Total'] - df['Product Cost']*df['Quantity'] - df['Shipping Fee'] - df['Marketplace Fee']
         summary = df.groupby('Marketplace').agg({
             'Order Total': 'sum', 'Product Cost': 'sum', 'Shipping Fee': 'sum', 'Profit': 'sum'
         }).reset_index()
