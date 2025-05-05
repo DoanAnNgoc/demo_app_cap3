@@ -1,16 +1,10 @@
-
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
-import os
 from datetime import datetime, timedelta
-from google.cloud import bigquery
-from google.oauth2 import service_account
-import json
 from prophet import Prophet
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -18,36 +12,39 @@ from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 from scipy.interpolate import make_interp_spline
-# Thiết lập xác thực Google BigQuery
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "D:/CÁ NHÂN/terminal/terminal/etl-cap3-27b899b6d343.json"
-client = bigquery.Client(project='etl-cap3')
 
-#
-st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
-st.markdown("""
-Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu, 
-và các biểu đồ phân tích dựa trên dữ liệu được lưu ở Google BigQuery sau quá trình ETL Pipeline trước đó.
-Bạn vui lòng chọn tab để xem các phân tích chi tiết.
-""")
-
-# Tải dữ liệu từ BigQuery
+# Tải dữ liệu từ Google Drive
 @st.cache_data
 def load_data():
-    query = """
-        SELECT * FROM etl-cap3.Sale_AMZ_ETSY.FinalData
-        LIMIT 500000000
-    """
-    df = client.query(query).to_dataframe()
-    df['Order Date'] = pd.to_datetime(df['Order Date'])
+    FILE_URL = "https://drive.google.com/file/d/1BEgh4x_dS0W-31ITcrt5iTT8Rv_aqviZ/view?usp=sharing"
+    df = pd.read_csv(FILE_URL)
+    df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
     df['year'] = df['Order Date'].dt.year
-    return df
+    # Đảm bảo các cột số
+    df['Order Total'] = pd.to_numeric(df['Order Total'], errors='coerce')
+    df['Product Cost'] = pd.to_numeric(df['Product Cost'], errors='coerce')
+    df['Shipping Fee'] = pd.to_numeric(df['Shipping Fee'], errors='coerce')
+    df['Profit'] = pd.to_numeric(df['Profit'], errors='coerce', downcast='float')
+    df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
+    # Nếu cột Profit chưa có, tính lại
+    if df['Profit'].isna().any():
+        df['Profit'] = df['Order Total'] - df['Product Cost'] - df['Shipping Fee']
+    return df.dropna(subset=['Order Date', 'Order Total'])
 
 # Tải dữ liệu
-with st.spinner("Đang tải dữ liệu từ BigQuery..."):
+with st.spinner("Đang tải dữ liệu từ Google Bigquery... Vui lòng đợi trong giây lát"):
     df = load_data()
 
+# Tiêu đề và mô tả
+st.title("Đề Án Tốt Nghiệp - Phân Tích Tình hình Kinh doanh - Dự đoán doanh thu và Phân Cụm Khách Hàng")
+st.markdown("""
+Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu, 
+và các biểu đồ phân tích dựa trên dữ liệu từ file CSV trên Google Bigquery.
+Bạn vui lòng chọn Tab để xem các phân tích chi tiết.
+""")
+
 # Tạo các tab
-tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Doanh Thu", "💵 Dự Đoán Doanh Thu", "📀 Phân Cụm Khách Hàng"])
+tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Tình Hình Kinh Doanh", "💵 Dự Đoán Doanh Thu Năm Tới", "📀 Phân Cụm Khách Hàng"])
 
 # Tab 1: Tổng Quan Doanh Thu
 with tab1:
@@ -60,7 +57,7 @@ with tab1:
     fig.update_layout(xaxis_tickangle=0, yaxis=dict(griddash='dash', gridcolor='gray'))
     st.plotly_chart(fig)
 
-   # Thêm biểu đồ Tổng Order Total theo Sub-Category (động)
+    # Thêm biểu đồ Tổng Order Total theo Sub-Category (động)
     st.subheader("Tổng Order Total theo Sub-Category Theo Năm")
     
     # Tính tổng Order Total theo Sub-Category và Year
@@ -109,6 +106,110 @@ with tab1:
         plt.close()  # Đóng figure để tránh xung đột
     else:
         st.warning("Không có dữ liệu để hiển thị biểu đồ theo Sub-Category.")
+
+    # Bổ sung: Chỉ số thống kê theo Marketplace
+    st.subheader("💳 Tổng Quan Theo Marketplace")
+    summary = df.groupby('Marketplace').agg({
+        'Order Total': 'sum',
+        'Product Cost': 'sum',
+        'Shipping Fee': 'sum',
+        'Profit': 'sum'
+    }).reset_index()
+    summary.columns = ['Marketplace', 'Revenue', 'Cost', 'ShippingFee', 'Profit']
+
+    fig2 = go.Figure()
+    for i, row in summary.iterrows():
+        fig2.add_trace(go.Indicator(
+            mode="number+delta",
+            value=row['Revenue'],
+            delta={'reference': 0, 'valueformat':'.2f'},
+            title={"text": f"<b>{row['Marketplace']}</b><br>Revenue"},
+            domain={'row': i, 'column': 0}
+        ))
+        fig2.add_trace(go.Indicator(
+            mode="number+delta",
+            value=row['Cost'],
+            delta={'reference': 0, 'valueformat':'.2f'},
+            title={"text": f"<b>{row['Marketplace']}</b><br>Cost"},
+            domain={'row': i, 'column': 1}
+        ))
+        fig2.add_trace(go.Indicator(
+            mode="number+delta",
+            value=row['Profit'],
+            delta={'reference': 0, 'valueformat':'.2f'},
+            title={"text": f"<b>{row['Marketplace']}</b><br>Profit"},
+            domain={'row': i, 'column': 2}
+        ))
+    fig2.update_layout(
+        grid={'rows': len(summary), 'columns': 3, 'pattern': "independent"},
+        height=250 * len(summary),
+        title="💳 Tổng Quan Theo Sàn"
+    )
+    st.plotly_chart(fig2)
+
+    # Bổ sung: Số lượng đơn hàng theo Marketplace
+    st.subheader("Số Lượng Đơn Hàng Theo Sàn")
+    grouped = df.groupby('Marketplace').agg({
+        'Order Total': 'sum',
+        'Order Id': 'count'
+    }).reset_index().rename(columns={'Order Id': 'OrderCount'})
+
+    # Gán màu xen kẽ đỏ và xanh lá cây
+    colors = ['red', 'green'] * (len(grouped) // 2 + 1)
+    grouped['Color'] = colors[:len(grouped)]
+
+    fig3 = px.bar(
+        grouped,
+        x='Marketplace',
+        y='OrderCount',
+        title='Số lượng đơn hàng theo sàn',
+        text_auto=True,
+        color='Color',
+        color_discrete_map={'red': 'red', 'green': 'green'}
+    )
+    fig3.update_layout(
+        xaxis_title='Sàn',
+        yaxis_title='Số lượng đơn',
+        showlegend=False
+    )
+    st.plotly_chart(fig3)
+
+    # Bổ sung: Top 5 sản phẩm bán chạy nhất (theo Quantity)
+    st.subheader("Top 5 Sản Phẩm Bán Chạy Nhất")
+    top_products = df.groupby('Sub Category')['Quantity'].sum().sort_values(ascending=False).head(5).reset_index()
+
+    fig4 = px.bar(
+        top_products,
+        x='Sub Category',
+        y='Quantity',
+        title='Top 5 sản phẩm bán chạy nhất',
+        text_auto=True,
+        color_discrete_sequence=['red']
+    )
+    fig4.update_layout(
+        xaxis_title='Tên sản phẩm',
+        yaxis_title='Số lượng bán'
+    )
+    st.plotly_chart(fig4)
+
+    # Bổ sung: Bản đồ doanh thu theo thành phố
+    st.subheader("Doanh Thu Theo Thành Phố")
+    city_group = df.groupby(['City', 'Country']).agg({'Order Total': 'sum'}).reset_index()
+
+    # Lưu ý: Plotly cần tọa độ lat/lon hoặc ánh xạ tên thành phố
+    # Vì dữ liệu không có lat/lon, dùng locationmode='country names' và hiển thị theo Country
+    fig5 = px.scatter_geo(
+        city_group,
+        locations="Country",
+        locationmode="country names",
+        color="Order Total",
+        size="Order Total",
+        hover_name="City",
+        scope='world',
+        title='Doanh thu theo thành phố',
+        size_max=20
+    )
+    st.plotly_chart(fig5)
 # Tab 2: Dự Đoán Doanh Thu
 with tab2:
     st.header("💵 Dự Đoán Doanh Thu với Prophet")
@@ -212,6 +313,7 @@ with tab2:
     st.write(f"📈 Giá trị dự đoán: **${selected_forecast['yhat'].iloc[0]:,.2f}**")
     st.write(f"📉 Khoảng tin cậy thấp: **${selected_forecast['yhat_lower'].iloc[0]:,.2f}**")
     st.write(f"📊 Khoảng tin cậy cao: **${selected_forecast['yhat_upper'].iloc[0]:,.2f}**")
+
 # Tab 3: Phân Cụm Khách Hàng
 with tab3:
     st.header("📀 Phân Cụm Khách Hàng với GMM")
@@ -250,7 +352,7 @@ with tab3:
     st.subheader("Đặc Trưng Trung Bình của Từng Cụm")
     st.dataframe(cluster_summary)
 
-    # Đánh giá mô hình phân cụm (từ Tab 4)
+    # Đánh giá mô hình phân cụm
     st.subheader("Đánh Giá Mô Hình Phân Cụm")
     df_valid = df_sample.dropna(subset=['Cluster'])
     X_valid = df_pca
@@ -267,4 +369,4 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.markdown("Web App Demo Đề Án Tốt Nghiệp được xây dựng với Streamlit bởi Ấn Ngọc . Liên hệ hỗ trợ: anngocmukbang@gmail.com")
+st.markdown("Web App Demo Đề Án Tốt Nghiệp được xây dựng với Streamlit bởi Ấn Ngọc. Liên hệ hỗ trợ: anngocmukbang@gmail.com")
