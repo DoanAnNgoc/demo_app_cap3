@@ -61,13 +61,13 @@ def load_data():
         return None
 
 # Tải dữ liệu
-with st.spinner("Đang tải dữ liệu từ Google Drive..."):
+with st.spinner("Đang tải dữ liệu từ Google Bigquery... Vui lòng đợi trong giây lát"):
     df = load_data()
     if df is None:
         st.stop()
 
 # Tiêu đề và mô tả
-st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
+st.title("Đề Án Tốt Nghiệp - Phân Tích Tình Hình Kinh Doanh - Dự Đoán Doanh Thu và Phân Cụm Khách Hàng")
 st.markdown("""
 Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu, 
 và các biểu đồ phân tích dựa trên dữ liệu từ file CSV trên Google Drive.
@@ -75,7 +75,7 @@ Bạn vui lòng chọn tab để xem các phân tích chi tiết.
 """)
 
 # Tạo các tab
-tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Doanh Thu", "💵 Dự Đoán Doanh Thu", "📀 Phân Cụm Khách Hàng"])
+tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Tình Hình Kinh Doanh", "💵 Dự Đoán Doanh Thu", "📀 Phân Cụm Khách Hàng"])
 
 # Tab 1: Tổng Quan Doanh Thu
 with tab1:
@@ -126,7 +126,7 @@ with tab1:
             plt.text(width + 0.5, bar.get_y() + bar.get_height()/2,
                      f'{width:,.2f}', va='center', fontsize=9)
 
-        plt.title(f'Tổng Doanh thu theo Sub-Category - Năm {selected_year}')
+        plt.title(f'Tổng Doanh thu theo Nhóm sản phẩm - Năm {selected_year}')
         plt.xlabel('Tổng Order Total')
         plt.ylabel('Sub-Category')
         plt.grid(True, axis='x', linestyle='--', alpha=0.7)
@@ -140,7 +140,7 @@ with tab1:
 
     # Bổ sung: Chỉ số thống kê theo Marketplace
     if 'Marketplace' in df.columns:
-        st.subheader("💳 Tổng Quan Theo Marketplace")
+        st.subheader("💳 Tổng Quan Theo Sàn")
         summary = df.groupby('Marketplace').agg({
             'Order Total': 'sum',
             'Product Cost': 'sum',
@@ -247,11 +247,9 @@ with tab1:
             hover_name="City",
             scope='world',
             title='Doanh thu theo thành phố',
-            size_max=60
+            size_max=20
         )
         st.plotly_chart(fig5)
-        st.warning("Biểu đồ bản đồ hiện chỉ hiển thị theo quốc gia do thiếu tọa độ lat/lon. Để hiển thị chính xác theo thành phố, cần thêm tọa độ hoặc sử dụng geopy.")
-    else:
         st.warning("Cột 'City' hoặc 'Country' không có trong dữ liệu.")
 
 # Tab 2: Dự Đoán Doanh Thu
