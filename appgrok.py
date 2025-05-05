@@ -27,7 +27,7 @@ def load_data():
     logger.info("Bắt đầu tải dữ liệu từ Google Drive...")
     
     try:
-        response = requests.get(FILE_URL, stream=True, timeout=30)
+        response = requests.get(FILE_URL, stream=True, timeout=60)  # Tăng timeout
         response.raise_for_status()
         content_type = response.headers.get('content-type', '')
         content_length = response.headers.get('content-length', 'Unknown')
@@ -94,6 +94,13 @@ def load_data():
         df_clean = df.dropna(subset=['Order Date', 'Order Total'])
         logger.info(f"Dữ liệu sau khi làm sạch: {df_clean.shape[0]} dòng")
         st.write(f"**Dữ liệu sau khi làm sạch**: {df_clean.shape[0]} dòng (mất {df.shape[0] - df_clean.shape[0]} dòng do thiếu Order Date hoặc Order Total)")
+
+        # Kiểm tra dữ liệu cho Marketplace
+        if 'Marketplace' in df_clean.columns:
+            st.write(f"**Số lượng Marketplace**: {df_clean['Marketplace'].nunique()}")
+            st.write(f"**Danh sách Marketplace**: {df_clean['Marketplace'].unique().reshape}")
+        else:
+            st.error("Cột 'Marketplace' không có trong dữ liệu.")
 
         return df_clean
     
@@ -162,21 +169,70 @@ with tab1:
     else:
         st.warning("Không có dữ liệu để hiển thị biểu đồ theo Sub-Category.")
 
+    # Tổng Quan Theo Marketplace (Sửa theo code bạn cung cấp)
     if 'Marketplace' in df.columns:
         st.subheader("💳 Tổng Quan Theo Marketplace")
+        
+        # Tính Profit (đảm bảo tính lại để khớp với code bạn cung cấp)
+        required_cols = ['Order Total', 'Product Cost', 'Quantity', 'Shipping Fee', 'Marketplace Fee']
+        if all(col in df.columns for col in required_cols):
+            df['Profit'] = df['Order Total'] - (df['Product Cost'] * df['Quantity']) - df['Shipping Fee'] - df['Marketplace Fee']
+            logger.info("Tính lại Profit cho Marketplace")
+        else:
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            st.error(f"Thiếu các cột cần thiết để tính Profit cho Marketplace: {missing_cols}")
+            logger.error(f"Thiếu cột: {missing_cols}")
+            st.stop()
+
+        # Kiểm tra NaN trong các cột cần thiết
+        agg_cols = ['Order Total', 'Product Cost', 'Shipping Fee', 'Profit']
+        for col in agg_cols:
+            nan_count = df[col].isna().sum()
+            if nan_count > 0:
+                st.warning(f"Cột '{col}' có {nan_count} giá trị NaN, có thể ảnh hưởng đến tổng hợp Marketplace.")
+
+        # Group by Marketplace
         summary = df.groupby('Marketplace').agg({
-            'Order Total': 'sum', 'Product Cost': 'sum', 'Shipping Fee': 'sum', 'Profit': 'sum'
+            'Order Total': 'sum',
+            'Product Cost': 'sum',
+            'Shipping Fee': 'sum',
+            'Profit': 'sum'
         }).reset_index()
         summary.columns = ['Marketplace', 'Revenue', 'Cost', 'ShippingFee', 'Profit']
+
+        # Hiển thị bảng summary để kiểm tra
+        st.write("**Dữ liệu tổng hợp Marketplace**:")
+        st.dataframe(summary)
+
+        # Vẽ biểu đồ Indicator
         fig2 = go.Figure()
         for i, row in summary.iterrows():
-            fig2.add_trace(go.Indicator(mode="number+delta", value=row['Revenue'], delta={'reference': 0, 'valueformat':'.2f'},
-                                        title={"text": f"<b>{row['Marketplace']}</b><br>Revenue"}, domain={'row': i, 'column': 0}))
-            fig2.add_trace(go.Indicator(mode="number+delta", value=row['Cost'], delta={'reference': 0, 'valueformat':'.2f'},
-                                        title={"text": f"<b>{row['Marketplace']}</b><br>Cost"}, domain={'row': i, 'column': 1}))
-            fig2.add_trace(go.Indicator(mode="number+delta", value=row['Profit'], delta={'reference': 0, 'valueformat':'.2f'},
-                                        title={"text": f"<b>{row['Marketplace']}</b><br>Profit"}, domain={'row': i, 'column': 2}))
-        fig2.update_layout(grid={'rows': len(summary), 'columns': 3, 'pattern': "independent"}, height=250 * len(summary), title="💳 Tổng Quan Theo Marketplace")
+            fig2.add_trace(go.Indicator(
+                mode="number+delta",
+                value=row['Revenue'],
+                delta={'reference': 0, 'valueformat':'.2f'},
+                title={"text": f"<b>{row['Marketplace']}</b><br>Revenue"},
+                domain={'row': i, 'column': 0}
+            ))
+            fig2.add_trace(go.Indicator(
+                mode="number+delta",
+                value=row['Cost'],
+                delta={'reference': 0, 'valueformat':'.2f'},
+                title={"text": f"<b>{row['Marketplace']}</b><br>Cost"},
+                domain={'row': i, 'column': 1}
+            ))
+            fig2.add_trace(go.Indicator(
+                mode="number+delta",
+                value=row['Profit'],
+                delta={'reference': 0, 'valueformat':'.2f'},
+                title={"text": f"<b>{row['Marketplace']}</b><br>Profit"},
+                domain={'row': i, 'column': 2}
+            ))
+        fig2.update_layout(
+            grid={'rows': len(summary), 'columns': 3, 'pattern': "independent"},
+            height=250 * len(summary),
+            title="💳 Tổng Quan Theo Marketplace"
+        )
         st.plotly_chart(fig2)
     else:
         st.warning("Cột 'Marketplace' không có trong dữ liệu.")
