@@ -25,19 +25,17 @@ Bạn vui lòng chọn tab để xem các phân tích chi tiết.
 @st.cache_data
 def load_data():
     # Liên kết Google Drive (thay bằng liên kết Excel công khai)
-    shareable_link = "https://docs.google.com/spreadsheets/d/1u2aXzp7gXuKF7qOEx-maeBNDMw7-pbQA"  
-        # Lấy ID tệp từ liên kết
+    shareable_link = "https://docs.google.com/spreadsheets/d/1u2aXzp7gXuKF7qOEx-maeBNDMw7-pbQA"  # Ví dụ: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    try:
         file_id = shareable_link.split('/d/')[1].split('/')[0]
         download_url = f'https://drive.google.com/uc?export=download&id={file_id}'
         df = pd.read_excel(download_url, engine='openpyxl')
-        
-        # Đảm bảo cột 'Order Date' là datetime
         df['Order Date'] = pd.to_datetime(df['Order Date'])
         df['year'] = df['Order Date'].dt.year
         return df
     except Exception as e:
         st.error(f"Lỗi khi đọc tệp Excel từ Google Drive: {e}")
-        return pd.DataFrame()  # Trả về DataFrame rỗng nếu lỗi
+        return pd.DataFrame()
 
 # Tải dữ liệu
 with st.spinner("Đang tải dữ liệu từ Google Drive..."):
@@ -46,10 +44,9 @@ with st.spinner("Đang tải dữ liệu từ Google Drive..."):
 # Kiểm tra số cột trong df
 if not df.empty:
     expected_cols = 22
-    print(f"Số cột trong tiêu đề DataFrame: {len(df.columns)}")
-    print(f"Các cột: {list(df.columns)}")
+    st.write(f"**Số cột trong tiêu đề DataFrame:** {len(df.columns)}")
+    st.write(f"**Các cột:** {list(df.columns)}")
 
-    # Đếm số dòng hợp lệ và không hợp lệ
     clean_lines = []
     error_lines = []
     col_count_distribution = {}
@@ -63,7 +60,6 @@ if not df.empty:
             if len(error_lines) < 5:
                 error_lines.append((i + 2, num_cols, row.tolist()))
 
-    # Hiển thị kết quả trong Streamlit
     st.write(f"**Số dòng hợp lệ (có đúng {expected_cols} cột):** {len(clean_lines)}")
     st.write("**Phân bố số cột trong DataFrame:**")
     for num_cols, count in sorted(col_count_distribution.items()):
@@ -76,10 +72,9 @@ if not df.empty:
     else:
         st.write("Tất cả các dòng đều đúng số cột.")
 
-# Tiếp tục các tab phân tích (giữ nguyên mã của bạn)
+# Các tab phân tích
 tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Doanh Thu", "💵 Dự Đoán Doanh Thu", "📀 Phân Cụm Khách Hàng"])
 
-# Tab 1: Tổng Quan Doanh Thu
 with tab1:
     st.header("📊 Tổng Quan Doanh Thu Theo Năm")
     if not df.empty:
@@ -121,7 +116,6 @@ with tab1:
     else:
         st.error("Không thể hiển thị biểu đồ do lỗi tải dữ liệu.")
 
-# Tab 2: Dự Đoán Doanh Thu
 with tab2:
     st.header("💵 Dự Đoán Doanh Thu với Prophet")
     if not df.empty:
@@ -203,7 +197,6 @@ with tab2:
     else:
         st.error("Không thể thực hiện dự đoán do lỗi tải dữ liệu.")
 
-# Tab 3: Phân Cụm Khách Hàng
 with tab3:
     st.header("📀 Phân Cụm Khách Hàng với GMM")
     if not df.empty:
@@ -242,6 +235,5 @@ with tab3:
     else:
         st.error("Không thể thực hiện phân cụm do lỗi tải dữ liệu.")
 
-# Footer
 st.markdown("---")
 st.markdown("Web App Demo Đề Án Tốt Nghiệp được xây dựng với Streamlit bởi Ấn Ngọc. Liên hệ hỗ trợ: anngocmukbang@gmail.com")
