@@ -38,46 +38,15 @@ def load_data():
         return pd.DataFrame()
 
 # Tải dữ liệu
-with st.spinner("Đang tải dữ liệu từ Google Drive..."):
+with st.spinner("Đang tải dữ liệu từ Google Drive...Vui lòng chờ trong giây lát"):
     df = load_data()
-
-# Kiểm tra số cột trong df
-if not df.empty:
-    expected_cols = 22
-    st.write(f"**Số cột trong tiêu đề DataFrame:** {len(df.columns)}")
-    st.write(f"**Các cột:** {list(df.columns)}")
-
-    clean_lines = []
-    error_lines = []
-    col_count_distribution = {}
-
-    for i, row in df.iterrows():
-        num_cols = len(row.dropna())
-        col_count_distribution[num_cols] = col_count_distribution.get(num_cols, 0) + 1
-        if num_cols == expected_cols:
-            clean_lines.append(row.tolist())
-        else:
-            if len(error_lines) < 5:
-                error_lines.append((i + 2, num_cols, row.tolist()))
-
-    st.write(f"**Số dòng hợp lệ (có đúng {expected_cols} cột):** {len(clean_lines)}")
-    st.write("**Phân bố số cột trong DataFrame:**")
-    for num_cols, count in sorted(col_count_distribution.items()):
-        st.write(f"Số dòng có {num_cols} cột: {count}")
-
-    if error_lines:
-        st.write("**Các dòng không đạt số cột chuẩn (tối đa 5 dòng):**")
-        for i, col_count, content in error_lines:
-            st.write(f"Dòng {i} có {col_count} cột: {content}")
-    else:
-        st.write("Tất cả các dòng đều đúng số cột.")
 
 # Tiêu đề và mô tả
 st.title("Đề Án Tốt Nghiệp - Phân Tích Tình hình kinh doanh - Dự đoán doanh thu và Phân Cụm Khách Hàng")
 st.markdown("""
 Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu, 
-và các biểu đồ phân tích dựa trên dữ liệu từ file nén (.gz) trong GitHub repository.
-Bạn vui lòng chọn tab để xem các phân tích chi tiết.
+và các biểu đồ phân tích dựa trên dữ liệu từ Google Drive.
+Bạn vui lòng chọn Tab để xem các phân tích chi tiết.
 """)
 
 # Tạo các tab
@@ -261,9 +230,6 @@ with tab1:
             size_max=20
         )
         st.plotly_chart(fig5)
-        st.warning("Biểu đồ bản đồ hiện chỉ hiển thị theo quốc gia do thiếu tọa độ lat/lon.")
-    else:
-        st.warning("Cột 'City' hoặc 'Country' không có trong dữ liệu.")
 
 # Tab 2: Dự Đoán Doanh Thu
 with tab2:
