@@ -15,19 +15,20 @@ from scipy.interpolate import make_interp_spline
 import requests
 import io
 import logging
+import gzip
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Tải dữ liệu từ Google Drive
+# Tải dữ liệu từ Google Drive hoặc file cục bộ
 @st.cache_data
 def load_data():
     FILE_URL = "https://drive.google.com/uc?export=download&id=1BEgh4x_dS0W-31ITcrt5iTT8Rv_aqviZ"
     logger.info("Bắt đầu tải dữ liệu từ Google Drive...")
     
     try:
-        response = requests.get(FILE_URL, stream=True, timeout=60)  # Tăng timeout
+        response = requests.get(FILE_URL, stream=True, timeout=60)
         response.raise_for_status()
         content_type = response.headers.get('content-type', '')
         content_length = response.headers.get('content-length', 'Unknown')
@@ -46,7 +47,8 @@ def load_data():
                 df = pd.read_csv(
                     io.BytesIO(content),
                     encoding=encoding,
-                    on_bad_lines='skip',
+                    # on_bad_lines='skip' đã bỏ để giữ toàn bộ dòng
+                    on_bad_lines='warn',  # Ghi lỗi vào log
                     quoting=3,
                     low_memory=False
                 )
@@ -63,6 +65,14 @@ def load_data():
         logger.info(f"Dữ liệu gốc: {df.shape[0]} dòng, {df.shape[1]} cột")
         st.write(f"**Thông tin dữ liệu gốc**: {df.shape[0]} dòng, {df.shape[1]} cột")
         st.write(f"**Cột**: {list(df.columns)}")
+        if df.shape[0] < 270000:
+            st.warning(f"Dữ liệu chỉ có {df.shape[0]} dòng, ít hơn 270,000 dòng mong đợi!")
+
+        # Kiểm tra NaN trước khi làm sạch
+        nan_counts = df[['Order Date', 'Order Total']].isna().sum()
+        st.write(f"**Giá trị NaN trước khi làm sạch**:")
+        st.write(f"- Order Date: {nan_counts['Order Date']} dòng")
+        st.write(f"- Order Total: {nan_counts['Order Total']} dòng")
 
         # Xử lý dữ liệu
         df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
@@ -75,7 +85,7 @@ def load_data():
                 if nan_count > 0:
                     st.warning(f"Cột '{col}' có {nan_count} giá trị NaN sau khi chuyển sang số.")
 
-        # Tính Profit theo công thức mới
+        # Tính Profit theo công thức
         required_cols = ['Order Total', 'Product Cost', 'Quantity', 'Shipping Fee']
         if all(col in df.columns for col in required_cols):
             if 'Marketplace Fee' in df.columns:
@@ -90,15 +100,16 @@ def load_data():
             st.warning(f"Thiếu các cột cần thiết để tính Profit: {missing_cols}")
             logger.warning(f"Thiếu cột: {missing_cols}")
 
-        # Làm sạch dữ liệu
-        df_clean = df.dropna(subset=['Order Date', 'Order Total'])
+        # Làm sạch dữ liệu (tùy chọn giữ dòng thiếu Order Total)
+        df_clean = df  # Giữ toàn bộ dòng, không loại NaN
+        # df_clean = df.dropna(subset=['Order Date', 'Order Total'])  # Comment để giữ dòng
         logger.info(f"Dữ liệu sau khi làm sạch: {df_clean.shape[0]} dòng")
-        st.write(f"**Dữ liệu sau khi làm sạch**: {df_clean.shape[0]} dòng (mất {df.shape[0] - df_clean.shape[0]} dòng do thiếu Order Date hoặc Order Total)")
+        st.write(f"**Dữ liệu sau khi làm sạch**: {df_clean.shape[0]} dòng")
 
         # Kiểm tra dữ liệu cho Marketplace
         if 'Marketplace' in df_clean.columns:
             st.write(f"**Số lượng Marketplace**: {df_clean['Marketplace'].nunique()}")
-            st.write(f"**Danh sách Marketplace**: {df_clean['Marketplace'].unique().reshape}")
+            st.write(f"**Danh sách Marketplace**: {df_clean['Marketplace'].unique().tolist()}")
         else:
             st.error("Cột 'Marketplace' không có trong dữ liệu.")
 
@@ -169,11 +180,11 @@ with tab1:
     else:
         st.warning("Không có dữ liệu để hiển thị biểu đồ theo Sub-Category.")
 
-    # Tổng Quan Theo Marketplace (Sửa theo code bạn cung cấp)
+    # Tổng Quan Theo Marketplace
     if 'Marketplace' in df.columns:
         st.subheader("💳 Tổng Quan Theo Marketplace")
         
-        # Tính Profit (đảm bảo tính lại để khớp với code bạn cung cấp)
+        # Tính Profit
         required_cols = ['Order Total', 'Product Cost', 'Quantity', 'Shipping Fee', 'Marketplace Fee']
         if all(col in df.columns for col in required_cols):
             df['Profit'] = df['Order Total'] - (df['Product Cost'] * df['Quantity']) - df['Shipping Fee'] - df['Marketplace Fee']
@@ -184,7 +195,7 @@ with tab1:
             logger.error(f"Thiếu cột: {missing_cols}")
             st.stop()
 
-        # Kiểm tra NaN trong các cột cần thiết
+        # Kiểm tra NaN
         agg_cols = ['Order Total', 'Product Cost', 'Shipping Fee', 'Profit']
         for col in agg_cols:
             nan_count = df[col].isna().sum()
@@ -200,7 +211,7 @@ with tab1:
         }).reset_index()
         summary.columns = ['Marketplace', 'Revenue', 'Cost', 'ShippingFee', 'Profit']
 
-        # Hiển thị bảng summary để kiểm tra
+        # Hiển thị bảng summary
         st.write("**Dữ liệu tổng hợp Marketplace**:")
         st.dataframe(summary)
 
