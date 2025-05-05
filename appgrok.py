@@ -30,7 +30,8 @@ def load_data():
         response = requests.get(FILE_URL, stream=True, timeout=30)
         response.raise_for_status()
         content_type = response.headers.get('content-type', '')
-        logger.info(f"Content-Type: {content_type}")
+        content_length = response.headers.get('content-length', 'Unknown')
+        logger.info(f"Content-Type: {content_type}, Content-Length: {content_length} bytes")
         
         if 'text/csv' not in content_type and 'application/octet-stream' not in content_type:
             st.error(f"URL không trả về file CSV. Content-Type: {content_type}")
@@ -59,13 +60,20 @@ def load_data():
                     return None
                 continue
 
-        logger.info("Xử lý dữ liệu...")
+        logger.info(f"Dữ liệu gốc: {df.shape[0]} dòng, {df.shape[1]} cột")
+        st.write(f"**Thông tin dữ liệu gốc**: {df.shape[0]} dòng, {df.shape[1]} cột")
+        st.write(f"**Cột**: {list(df.columns)}")
+
+        # Xử lý dữ liệu
         df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
         df['year'] = df['Order Date'].dt.year
         numeric_cols = ['Order Total', 'Product Cost', 'Shipping Fee', 'Profit', 'Quantity', 'Marketplace Fee']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
+                nan_count = df[col].isna().sum()
+                if nan_count > 0:
+                    st.warning(f"Cột '{col}' có {nan_count} giá trị NaN sau khi chuyển sang số.")
 
         # Tính Profit theo công thức mới
         required_cols = ['Order Total', 'Product Cost', 'Quantity', 'Shipping Fee']
@@ -78,11 +86,15 @@ def load_data():
                 logger.info("Tính Profit không có Marketplace Fee")
                 st.warning("Cột 'Marketplace Fee' không có, Profit được tính mà không trừ phí sàn.")
         else:
-            st.warning(f"Thiếu các cột cần thiết để tính Profit: {required_cols}")
-            logger.warning(f"Thiếu cột: {required_cols}")
+            missing_cols = [col for col in required_cols if col not in df.columns]
+            st.warning(f"Thiếu các cột cần thiết để tính Profit: {missing_cols}")
+            logger.warning(f"Thiếu cột: {missing_cols}")
 
+        # Làm sạch dữ liệu
         df_clean = df.dropna(subset=['Order Date', 'Order Total'])
         logger.info(f"Dữ liệu sau khi làm sạch: {df_clean.shape[0]} dòng")
+        st.write(f"**Dữ liệu sau khi làm sạch**: {df_clean.shape[0]} dòng (mất {df.shape[0] - df_clean.shape[0]} dòng do thiếu Order Date hoặc Order Total)")
+
         return df_clean
     
     except requests.exceptions.RequestException as e:
@@ -226,7 +238,7 @@ with tab2:
     fig1.add_trace(go.Scatter(x=ds_smooth, y=y_smooth, mode='lines', name='Thực tế', line=dict(color='blue', width=1)))
     fig1.add_trace(go.Scatter(x=past_forecast['ds'], y=past_forecast['yhat_smooth'], mode='lines', name='Dự đoán', line=dict(color='orange', width=1)))
     fig1.add_trace(go.Scatter(x=past_forecast['ds'], y=past_forecast['yhat_upper_smooth'], mode='lines', name='Khoảng tin cậy (trên)', line=dict(color='yellow', width=0), showlegend=False))
-    fig1.add_trace(go.Scatter(x=past_forecast['ds'], y=past_forecast['yhat_lower_smooth'], mode='linesbot', name='Khoảng tin cậy (dưới)', line=dict(color='yellow', width=0), fill='tonexty', fillcolor='rgba(255, 255, 0, 0.2)'))
+    fig1.add_trace(go.Scatter(x=past_forecast['ds'], y=past_forecast['yhat_lower_smooth'], mode='lines', name='Khoảng tin cậy (dưới)', line=dict(color='yellow', width=0), fill='tonexty', fillcolor='rgba(255, 255, 0, 0.2)'))
     fig1.update_layout(title='Giá trị bán hàng hàng tháng - Prophet (Tập gốc)', xaxis_title='Ngày', yaxis_title='Giá trị bán hàng', xaxis_tickformat='%Y-%m', xaxis_tickangle=45, yaxis=dict(griddash='dash', gridcolor='gray'))
     st.plotly_chart(fig1)
     future = model.make_future_dataframe(periods=365, freq='D')
@@ -298,7 +310,7 @@ with tab3:
     ch_index = calinski_harabasz_score(X_valid, labels)
     st.write(f"📊 Silhouette Score: {sil_score:.3f}")
     st.write(f"📊 Davies-Bouldin Index: {db_index:.3f}")
-    st.write(f"📊 Calinski-Harabasz Index:ційної Score: {ch_index:.3f}")
+    st.write(f"📊 Calinski-Harabasz Index: {ch_index:.3f}")
     st.write(f"📊 Số cụm: {len(set(labels))}")
 
 # Footer
