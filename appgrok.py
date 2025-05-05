@@ -13,14 +13,6 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_har
 import numpy as np
 from scipy.interpolate import make_interp_spline
 
-# Thiết lập tiêu đề
-st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
-st.markdown("""
-Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu,
-và các biểu đồ phân tích dựa trên dữ liệu từ tệp Excel trên Google Drive.
-Bạn vui lòng chọn tab để xem các phân tích chi tiết.
-""")
-
 # Tải dữ liệu từ Google Drive
 @st.cache_data
 def load_data():
