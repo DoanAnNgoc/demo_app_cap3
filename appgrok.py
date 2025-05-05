@@ -175,7 +175,7 @@ with tab1:
         fig2.update_layout(
             grid={'rows': len(summary), 'columns': 3, 'pattern': "independent"},
             height=250 * len(summary),
-            title="💳 Tổng Quan Theo Marketplace"
+            title="💳 Tổng Quan Theo sàn"
         )
         st.plotly_chart(fig2)
     else:
@@ -250,7 +250,6 @@ with tab1:
             size_max=20
         )
         st.plotly_chart(fig5)
-        st.warning("Cột 'City' hoặc 'Country' không có trong dữ liệu.")
 
 # Tab 2: Dự Đoán Doanh Thu
 with tab2:
