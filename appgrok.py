@@ -16,7 +16,7 @@ from scipy.interpolate import make_interp_spline
 # Tải dữ liệu từ Google Drive
 @st.cache_data
 def load_data():
-    FILE_URL = "https://drive.google.com/file/d/1BEgh4x_dS0W-31ITcrt5iTT8Rv_aqviZ/view?usp=sharing"
+    FILE_URL = "https://drive.google.com/file/d/1BEgh4x_dS0W-31ITcrt5iTT8Rv_aqviZ"
     df = pd.read_csv(FILE_URL)
     df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
     df['year'] = df['Order Date'].dt.year
