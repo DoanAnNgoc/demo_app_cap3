@@ -192,7 +192,7 @@ with tab1:
         st.subheader("Doanh Thu Theo Thành Phố")
         city_group = df.groupby(['City', 'Country']).agg({'Order Total': 'sum'}).reset_index()
         fig5 = px.scatter_geo(city_group, locations="Country", locationmode="country names", color="Order Total",
-                              size="Order Total", hover_name="City", scope='world', title='Doanh thu theo thành phố', size_max=60)
+                              size="Order Total", hover_name="City", scope='world', title='Doanh thu theo thành phố', size_max=23)
         st.plotly_chart(fig5)
 
 
