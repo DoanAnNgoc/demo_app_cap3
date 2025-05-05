@@ -12,39 +12,70 @@ from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score, mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 from scipy.interpolate import make_interp_spline
+import requests
+import io
 
 # Tải dữ liệu từ Google Drive
 @st.cache_data
 def load_data():
-    FILE_URL = "https://drive.google.com/file/d/1BEgh4x_dS0W-31ITcrt5iTT8Rv_aqviZ"
-    df = pd.read_csv(FILE_URL)
-    df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
-    df['year'] = df['Order Date'].dt.year
-    # Đảm bảo các cột số
-    df['Order Total'] = pd.to_numeric(df['Order Total'], errors='coerce')
-    df['Product Cost'] = pd.to_numeric(df['Product Cost'], errors='coerce')
-    df['Shipping Fee'] = pd.to_numeric(df['Shipping Fee'], errors='coerce')
-    df['Profit'] = pd.to_numeric(df['Profit'], errors='coerce', downcast='float')
-    df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
-    # Nếu cột Profit chưa có, tính lại
-    if df['Profit'].isna().any():
-        df['Profit'] = df['Order Total'] - df['Product Cost'] - df['Shipping Fee']
-    return df.dropna(subset=['Order Date', 'Order Total'])
+    FILE_URL = "https://drive.google.com/uc?export=download&id=1BEgh4x_dS0W-31ITcrt5iTT8Rv_aqviZ"
+    try:
+        # Kiểm tra URL có trả về file hợp lệ không
+        response = requests.get(FILE_URL, stream=True)
+        response.raise_for_status()  # Kiểm tra lỗi HTTP
+        content_type = response.headers.get('content-type', '')
+        if 'text/csv' not in content_type and 'application/octet-stream' not in content_type:
+            st.error(f"URL không trả về file CSV. Content-Type: {content_type}")
+            return None
+
+        # Đọc file CSV với encoding linh hoạt
+        content = response.content
+        try:
+            df = pd.read_csv(io.BytesIO(content), encoding='utf-8', on_bad_lines='skip')
+        except UnicodeDecodeError:
+            df = pd.read_csv(io.BytesIO(content), encoding='latin1', on_bad_lines='skip')
+        except pd.errors.ParserError as e:
+            st.error(f"Lỗi phân tích CSV, thử bỏ qua dòng lỗi: {str(e)}")
+            df = pd.read_csv(io.BytesIO(content), encoding='utf-8', on_bad_lines='skip', quoting=3)  # Bỏ qua lỗi quote
+
+        # Xử lý dữ liệu
+        df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce')
+        df['year'] = df['Order Date'].dt.year
+        # Đảm bảo các cột số
+        numeric_cols = ['Order Total', 'Product Cost', 'Shipping Fee', 'Profit', 'Quantity']
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        # Tính Profit nếu thiếu
+        if 'Profit' in df.columns and df['Profit'].isna().any():
+            df['Profit'] = df['Order Total'] - df['Product Cost'] - df['Shipping Fee']
+        return df.dropna(subset=['Order Date', 'Order Total'])
+    except requests.exceptions.RequestException as e:
+        st.error(f"Lỗi khi tải file từ Google Drive: {str(e)}")
+        return None
+    except pd.errors.ParserError as e:
+        st.error(f"Lỗi phân tích file CSV: {str(e)}")
+        return None
+    except Exception as e:
+        st.error(f"Lỗi không xác định: {str(e)}")
+        return None
 
 # Tải dữ liệu
-with st.spinner("Đang tải dữ liệu từ Google Bigquery... Vui lòng đợi trong giây lát"):
+with st.spinner("Đang tải dữ liệu từ Google Drive..."):
     df = load_data()
+    if df is None:
+        st.stop()
 
 # Tiêu đề và mô tả
-st.title("Đề Án Tốt Nghiệp - Phân Tích Tình hình Kinh doanh - Dự đoán doanh thu và Phân Cụm Khách Hàng")
+st.title("Đề Án Tốt Nghiệp - Phân Tích Doanh Thu và Phân Cụm Khách Hàng")
 st.markdown("""
 Ứng dụng này hiển thị phân cụm khách hàng, dự đoán doanh thu, 
-và các biểu đồ phân tích dựa trên dữ liệu từ file CSV trên Google Bigquery.
-Bạn vui lòng chọn Tab để xem các phân tích chi tiết.
+và các biểu đồ phân tích dựa trên dữ liệu từ file CSV trên Google Drive.
+Bạn vui lòng chọn tab để xem các phân tích chi tiết.
 """)
 
 # Tạo các tab
-tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Tình Hình Kinh Doanh", "💵 Dự Đoán Doanh Thu Năm Tới", "📀 Phân Cụm Khách Hàng"])
+tab1, tab2, tab3 = st.tabs(["📊 Tổng Quan Doanh Thu", "💵 Dự Đoán Doanh Thu", "📀 Phân Cụm Khách Hàng"])
 
 # Tab 1: Tổng Quan Doanh Thu
 with tab1:
@@ -108,108 +139,121 @@ with tab1:
         st.warning("Không có dữ liệu để hiển thị biểu đồ theo Sub-Category.")
 
     # Bổ sung: Chỉ số thống kê theo Marketplace
-    st.subheader("💳 Tổng Quan Theo Marketplace")
-    summary = df.groupby('Marketplace').agg({
-        'Order Total': 'sum',
-        'Product Cost': 'sum',
-        'Shipping Fee': 'sum',
-        'Profit': 'sum'
-    }).reset_index()
-    summary.columns = ['Marketplace', 'Revenue', 'Cost', 'ShippingFee', 'Profit']
+    if 'Marketplace' in df.columns:
+        st.subheader("💳 Tổng Quan Theo Marketplace")
+        summary = df.groupby('Marketplace').agg({
+            'Order Total': 'sum',
+            'Product Cost': 'sum',
+            'Shipping Fee': 'sum',
+            'Profit': 'sum'
+        }).reset_index()
+        summary.columns = ['Marketplace', 'Revenue', 'Cost', 'ShippingFee', 'Profit']
 
-    fig2 = go.Figure()
-    for i, row in summary.iterrows():
-        fig2.add_trace(go.Indicator(
-            mode="number+delta",
-            value=row['Revenue'],
-            delta={'reference': 0, 'valueformat':'.2f'},
-            title={"text": f"<b>{row['Marketplace']}</b><br>Revenue"},
-            domain={'row': i, 'column': 0}
-        ))
-        fig2.add_trace(go.Indicator(
-            mode="number+delta",
-            value=row['Cost'],
-            delta={'reference': 0, 'valueformat':'.2f'},
-            title={"text": f"<b>{row['Marketplace']}</b><br>Cost"},
-            domain={'row': i, 'column': 1}
-        ))
-        fig2.add_trace(go.Indicator(
-            mode="number+delta",
-            value=row['Profit'],
-            delta={'reference': 0, 'valueformat':'.2f'},
-            title={"text": f"<b>{row['Marketplace']}</b><br>Profit"},
-            domain={'row': i, 'column': 2}
-        ))
-    fig2.update_layout(
-        grid={'rows': len(summary), 'columns': 3, 'pattern': "independent"},
-        height=250 * len(summary),
-        title="💳 Tổng Quan Theo Sàn"
-    )
-    st.plotly_chart(fig2)
+        fig2 = go.Figure()
+        for i, row in summary.iterrows():
+            fig2.add_trace(go.Indicator(
+                mode="number+delta",
+                value=row['Revenue'],
+                delta={'reference': 0, 'valueformat':'.2f'},
+                title={"text": f"<b>{row['Marketplace']}</b><br>Revenue"},
+                domain={'row': i, 'column': 0}
+            ))
+            fig2.add_trace(go.Indicator(
+                mode="number+delta",
+                value=row['Cost'],
+                delta={'reference': 0, 'valueformat':'.2f'},
+                title={"text": f"<b>{row['Marketplace']}</b><br>Cost"},
+                domain={'row': i, 'column': 1}
+            ))
+            fig2.add_trace(go.Indicator(
+                mode="number+delta",
+                value=row['Profit'],
+                delta={'reference': 0, 'valueformat':'.2f'},
+                title={"text": f"<b>{row['Marketplace']}</b><br>Profit"},
+                domain={'row': i, 'column': 2}
+            ))
+        fig2.update_layout(
+            grid={'rows': len(summary), 'columns': 3, 'pattern': "independent"},
+            height=250 * len(summary),
+            title="💳 Tổng Quan Theo Marketplace"
+        )
+        st.plotly_chart(fig2)
+    else:
+        st.warning("Cột 'Marketplace' không có trong dữ liệu.")
 
     # Bổ sung: Số lượng đơn hàng theo Marketplace
-    st.subheader("Số Lượng Đơn Hàng Theo Sàn")
-    grouped = df.groupby('Marketplace').agg({
-        'Order Total': 'sum',
-        'Order Id': 'count'
-    }).reset_index().rename(columns={'Order Id': 'OrderCount'})
+    if 'Marketplace' in df.columns and 'Order Id' in df.columns:
+        st.subheader("Số Lượng Đơn Hàng Theo Sàn")
+        grouped = df.groupby('Marketplace').agg({
+            'Order Total': 'sum',
+            'Order Id': 'count'
+        }).reset_index().rename(columns={'Order Id': 'OrderCount'})
 
-    # Gán màu xen kẽ đỏ và xanh lá cây
-    colors = ['red', 'green'] * (len(grouped) // 2 + 1)
-    grouped['Color'] = colors[:len(grouped)]
+        # Gán màu xen kẽ đỏ và xanh lá cây
+        colors = ['red', 'green'] * (len(grouped) // 2 + 1)
+        grouped['Color'] = colors[:len(grouped)]
 
-    fig3 = px.bar(
-        grouped,
-        x='Marketplace',
-        y='OrderCount',
-        title='Số lượng đơn hàng theo sàn',
-        text_auto=True,
-        color='Color',
-        color_discrete_map={'red': 'red', 'green': 'green'}
-    )
-    fig3.update_layout(
-        xaxis_title='Sàn',
-        yaxis_title='Số lượng đơn',
-        showlegend=False
-    )
-    st.plotly_chart(fig3)
+        fig3 = px.bar(
+            grouped,
+            x='Marketplace',
+            y='OrderCount',
+            title='Số lượng đơn hàng theo sàn',
+            text_auto=True,
+            color='Color',
+            color_discrete_map={'red': 'red', 'green': 'green'}
+        )
+        fig3.update_layout(
+            xaxis_title='Sàn',
+            yaxis_title='Số lượng đơn',
+            showlegend=False
+        )
+        st.plotly_chart(fig3)
+    else:
+        st.warning("Cột 'Marketplace' hoặc 'Order Id' không có trong dữ liệu.")
 
     # Bổ sung: Top 5 sản phẩm bán chạy nhất (theo Quantity)
-    st.subheader("Top 5 Sản Phẩm Bán Chạy Nhất")
-    top_products = df.groupby('Sub Category')['Quantity'].sum().sort_values(ascending=False).head(5).reset_index()
+    if 'Sub Category' in df.columns and 'Quantity' in df.columns:
+        st.subheader("Top 5 Sản Phẩm Bán Chạy Nhất")
+        top_products = df.groupby('Sub Category')['Quantity'].sum().sort_values(ascending=False).head(5).reset_index()
 
-    fig4 = px.bar(
-        top_products,
-        x='Sub Category',
-        y='Quantity',
-        title='Top 5 sản phẩm bán chạy nhất',
-        text_auto=True,
-        color_discrete_sequence=['red']
-    )
-    fig4.update_layout(
-        xaxis_title='Tên sản phẩm',
-        yaxis_title='Số lượng bán'
-    )
-    st.plotly_chart(fig4)
+        fig4 = px.bar(
+            top_products,
+            x='Sub Category',
+            y='Quantity',
+            title='Top 5 sản phẩm bán chạy nhất',
+            text_auto=True,
+            color_discrete_sequence=['red']
+        )
+        fig4.update_layout(
+            xaxis_title='Tên sản phẩm',
+            yaxis_title='Số lượng bán'
+        )
+        st.plotly_chart(fig4)
+    else:
+        st.warning("Cột 'Sub Category' hoặc 'Quantity' không có trong dữ liệu.")
 
     # Bổ sung: Bản đồ doanh thu theo thành phố
-    st.subheader("Doanh Thu Theo Thành Phố")
-    city_group = df.groupby(['City', 'Country']).agg({'Order Total': 'sum'}).reset_index()
+    if 'City' in df.columns and 'Country' in df.columns:
+        st.subheader("Doanh Thu Theo Thành Phố")
+        city_group = df.groupby(['City', 'Country']).agg({'Order Total': 'sum'}).reset_index()
 
-    # Lưu ý: Plotly cần tọa độ lat/lon hoặc ánh xạ tên thành phố
-    # Vì dữ liệu không có lat/lon, dùng locationmode='country names' và hiển thị theo Country
-    fig5 = px.scatter_geo(
-        city_group,
-        locations="Country",
-        locationmode="country names",
-        color="Order Total",
-        size="Order Total",
-        hover_name="City",
-        scope='world',
-        title='Doanh thu theo thành phố',
-        size_max=20
-    )
-    st.plotly_chart(fig5)
+        # Hiển thị theo Country do thiếu lat/lon
+        fig5 = px.scatter_geo(
+            city_group,
+            locations="Country",
+            locationmode="country names",
+            color="Order Total",
+            size="Order Total",
+            hover_name="City",
+            scope='world',
+            title='Doanh thu theo thành phố',
+            size_max=60
+        )
+        st.plotly_chart(fig5)
+        st.warning("Biểu đồ bản đồ hiện chỉ hiển thị theo quốc gia do thiếu tọa độ lat/lon. Để hiển thị chính xác theo thành phố, cần thêm tọa độ hoặc sử dụng geopy.")
+    else:
+        st.warning("Cột 'City' hoặc 'Country' không có trong dữ liệu.")
+
 # Tab 2: Dự Đoán Doanh Thu
 with tab2:
     st.header("💵 Dự Đoán Doanh Thu với Prophet")
