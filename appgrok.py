@@ -328,11 +328,12 @@ with tab2:
     st.write(f"📊 Khoảng tin cậy cao: **${selected_forecast['yhat_upper'].iloc[0]:,.2f}**")
 
 # Tab 3: Phân Cụm Khách Hàng
+# Tab 3: Phân Cụm Khách Hàng
 with tab3:
     st.header("📀 Phân Cụm Khách Hàng với GMM")
 
     # Lấy mẫu dữ liệu
-    df_sample = df.sample(n=35000, random_state=42)
+    df_sample = df.sample(n=40000, random_state=42)
     df_cluster = df_sample[['Product Cost', 'Shipping Fee', 'Order Total', 'Profit']]
 
     # Chuẩn hóa và PCA
@@ -341,18 +342,62 @@ with tab3:
     pca = PCA(n_components=2)
     df_pca = pca.fit_transform(df_scaled)
 
-    # Phân cụm với GMM
-    gmm = GaussianMixture(n_components=7, random_state=42)
-    clusters = gmm.fit_predict(df_pca)
-    df_sample['Cluster'] = clusters
+    # Bước 1: Xác định số cụm tối ưu bằng AIC và BIC
+    k_range = range(1, 11)  # Thử từ 1 đến 10 cụm
+    aic_scores = []
+    bic_scores = []
+    models = []
 
-    # Vẽ biểu đồ phân cụm
-    fig3 = px.scatter(x=df_pca[:, 0], y=df_pca[:, 1], color=clusters.astype(str), title='Phân Cụm Khách Hàng với GMM',
-                      labels={'x': 'PCA 1', 'y': 'PCA 2', 'color': 'Cluster'}, color_discrete_sequence=px.colors.qualitative.T10)
-    fig3.update_layout(showlegend=True)
-    st.plotly_chart(fig3)
+    with st.spinner("Đang tính toán số cụm tối ưu..."):
+        for k in k_range:
+            gmm = GaussianMixture(n_components=k, random_state=42, n_init=10)
+            gmm.fit(df_pca)
+            aic_scores.append(gmm.aic(df_pca))
+            bic_scores.append(gmm.bic(df_pca))
+            models.append(gmm)
 
-    # Hiển thị kết quả phân cụm
+    # Vẽ biểu đồ AIC và BIC với Plotly
+    fig_aic_bic = go.Figure()
+    fig_aic_bic.add_trace(go.Scatter(x=list(k_range), y=aic_scores, mode='lines+markers', name='AIC', line=dict(color='#1f77b4')))
+    fig_aic_bic.add_trace(go.Scatter(x=list(k_range), y=bic_scores, mode='lines+markers', name='BIC', line=dict(color='#ff7f0e', dash='dash')))
+    fig_aic_bic.update_layout(
+        title='AIC và BIC theo số cụm',
+        xaxis_title='Số cụm (k)',
+        yaxis_title='Score',
+        yaxis=dict(griddash='dash', gridcolor='gray'),
+        showlegend=True
+    )
+    st.plotly_chart(fig_aic_bic)
+
+    # Tìm số cụm tối ưu
+    optimal_k_aic = k_range[np.argmin(aic_scores)]
+    optimal_k_bic = k_range[np.argmin(bic_scores)]
+    st.write(f"**Số cụm tối ưu theo AIC:** {optimal_k_aic}")
+    st.write(f"**Số cụm tối ưu theo BIC:** {optimal_k_bic}")
+
+    # Cho phép người dùng chọn số cụm
+    selected_k = st.slider("Chọn số cụm để phân cụm:", min_value=1, max_value=10, value=optimal_k_aic)
+
+    # Bước 2: Phân cụm với số cụm được chọn
+    with st.spinner("Đang thực hiện phân cụm..."):
+        gmm_optimal = GaussianMixture(n_components=selected_k, random_state=42, n_init=10)
+        clusters = gmm_optimal.fit_predict(df_pca)
+        df_sample['Cluster'] = clusters
+
+    # Bước 3: Vẽ biểu đồ phân cụm với Plotly
+    fig_cluster = px.scatter(
+        x=df_pca[:, 0], 
+        y=df_pca[:, 1], 
+        color=clusters.astype(str), 
+        title=f'Phân Cụm Khách Hàng với GMM (k={selected_k})',
+        labels={'x': 'PCA 1', 'y': 'PCA 2', 'color': 'Cluster'},
+        color_discrete_sequence=px.colors.qualitative.T10
+    )
+    fig_cluster.update_traces(marker=dict(size=5))
+    fig_cluster.update_layout(showlegend=True, yaxis=dict(griddash='dash', gridcolor='gray'))
+    st.plotly_chart(fig_cluster)
+
+    # Bước 4: Hiển thị kết quả phân cụm
     st.subheader("Kết Quả Phân Cụm (Mẫu)")
     st.dataframe(df_sample[['Order Id', 'City', 'Country', 'Cluster']].head())
 
